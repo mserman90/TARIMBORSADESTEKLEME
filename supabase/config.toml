@@ -1,0 +1,8 @@
+[functions.send-price-notifications]
+verify_jwt = false
+
+[functions.fetch-tobb-prices]
+verify_jwt = false
+
+[functions.fetch-agri-news]
+verify_jwt = false
