@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { AgriSupport, STATUS_COLORS, STATUS_LABELS } from '@/lib/types';
+import { AgriSupport } from '@/lib/types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,61 +8,21 @@ import {
   Clock,
   XCircle,
   AlertCircle,
+  CalendarPlus,
+  Download,
 } from 'lucide-react';
+import { downloadICS, getGoogleCalendarUrl, parseTurkishDate } from '@/lib/ics';
 
 const MONTHS_TR = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
 ];
 
-const MONTH_MAP: Record<string, number> = {
-  'ocak': 0, 'şubat': 1, 'subat': 1, 'mart': 2, 'nisan': 3, 'mayıs': 4, 'mayis': 4,
-  'haziran': 5, 'temmuz': 6, 'ağustos': 7, 'agustos': 7, 'eylül': 8, 'eylul': 8,
-  'ekim': 9, 'kasım': 10, 'kasim': 10, 'aralık': 11, 'aralik': 11,
-};
-
 interface CalendarEvent {
   date: Date;
   support: AgriSupport;
   type: 'start' | 'end';
   label: string;
-}
-
-function parseTurkishDate(text: string): Date | null {
-  if (!text) return null;
-  const lower = text.toLowerCase().trim();
-
-  if (lower === 'sürekli' || lower.includes('ilan edilecek') || lower.includes('tamamlandı')) {
-    return null;
-  }
-
-  const match = lower.match(/(\d{1,2})\s*([a-zçğıöşü]+)\s*(\d{4})/);
-  if (match) {
-    const day = parseInt(match[1], 10);
-    const monthName = match[2];
-    const year = parseInt(match[3], 10);
-    const month = MONTH_MAP[monthName];
-    if (month !== undefined) {
-      return new Date(year, month, day);
-    }
-  }
-
-  const monthOnly = lower.match(/([a-zçğıöşü]+)\s*(\d{4})/);
-  if (monthOnly) {
-    const monthName = monthOnly[1];
-    const year = parseInt(monthOnly[2], 10);
-    const month = MONTH_MAP[monthName];
-    if (month !== undefined) {
-      return new Date(year, month, 1);
-    }
-  }
-
-  const yearOnly = lower.match(/^(\d{4})$/);
-  if (yearOnly) {
-    return new Date(parseInt(yearOnly[1], 10), 0, 1);
-  }
-
-  return null;
 }
 
 function buildEvents(supports: AgriSupport[]): CalendarEvent[] {
@@ -106,7 +66,10 @@ function isSameMonth(a: Date, b: Date): boolean {
 const WEEKDAYS = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'];
 
 export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1)); // September 2026
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const events = useMemo(() => buildEvents(supports), [supports]);
@@ -125,6 +88,18 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
     () => events.filter((e) => isSameMonth(e.date, currentMonth)),
     [events, currentMonth]
   );
+
+  const monthSupports = useMemo(() => {
+    const seen = new Set<string>();
+    const result: AgriSupport[] = [];
+    for (const e of monthEvents) {
+      if (!seen.has(e.support.id)) {
+        seen.add(e.support.id);
+        result.push(e.support);
+      }
+    }
+    return result;
+  }, [monthEvents]);
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();
@@ -262,6 +237,7 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
               <div className="space-y-2">
                 {selectedDayEvents.map((e, idx) => {
                   const StatusIcon = e.support.status === 'active' ? CheckCircle2 : e.support.status === 'upcoming' ? Clock : XCircle;
+                  const gcalUrl = getGoogleCalendarUrl(e.support);
                   return (
                     <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-stone-50">
                       <StatusIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
@@ -273,6 +249,26 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
                           {e.type === 'start' ? 'Başvuru başlangıcı' : 'Son başvuru tarihi'}
                           {' · '}{e.support.agency}
                         </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <button
+                            onClick={() => downloadICS(e.support)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800 transition-colors"
+                          >
+                            <Download className="w-3 h-3" />
+                            .ics
+                          </button>
+                          {gcalUrl && (
+                            <a
+                              href={gcalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-blue-800 transition-colors"
+                            >
+                              <CalendarPlus className="w-3 h-3" />
+                              Google
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -281,6 +277,19 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
             ) : (
               <p className="text-sm text-stone-400 py-2">Bu tarihte önemli bir tarih yok</p>
             )}
+          </div>
+        )}
+
+        {/* Export this month's events */}
+        {monthEvents.length > 0 && (
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => monthSupports.forEach((s) => downloadICS(s))}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 px-2.5 py-1.5 rounded-lg border border-green-200 bg-green-50 hover:bg-green-100 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Bu ayın tarihlerini .ics indir
+            </button>
           </div>
         )}
 
@@ -312,6 +321,7 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
             <div className="space-y-2">
               {monthEvents.map((e, idx) => {
                 const StatusIcon = e.support.status === 'active' ? CheckCircle2 : e.support.status === 'upcoming' ? Clock : XCircle;
+                const gcalUrl = getGoogleCalendarUrl(e.support);
                 return (
                   <div key={idx} className="flex items-start gap-2.5">
                     <div className="flex-shrink-0 w-10 text-center">
@@ -329,6 +339,26 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
                         <span className="text-xs text-stone-500">
                           {e.type === 'start' ? 'Başlangıç' : 'Son başvuru'}
                         </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={() => downloadICS(e.support)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800 transition-colors"
+                        >
+                          <Download className="w-3 h-3" />
+                          .ics
+                        </button>
+                        {gcalUrl && (
+                          <a
+                            href={gcalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-blue-800 transition-colors"
+                          >
+                            <CalendarPlus className="w-3 h-3" />
+                            Google
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -350,6 +380,7 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
             <div className="space-y-2">
               {upcomingEvents.map((e, idx) => {
                 const daysUntil = Math.ceil((e.date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                const gcalUrl = getGoogleCalendarUrl(e.support);
                 return (
                   <div key={idx} className="flex items-start gap-2.5">
                     <div className="flex-shrink-0 w-10 text-center">
@@ -370,6 +401,26 @@ export function SupportCalendar({ supports }: { supports: AgriSupport[] }) {
                         <span className="text-xs text-stone-500">
                           {e.type === 'start' ? 'Başlangıç' : 'Son başvuru'}
                         </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={() => downloadICS(e.support)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800 transition-colors"
+                        >
+                          <Download className="w-3 h-3" />
+                          .ics
+                        </button>
+                        {gcalUrl && (
+                          <a
+                            href={gcalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-blue-800 transition-colors"
+                          >
+                            <CalendarPlus className="w-3 h-3" />
+                            Google
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -12,7 +12,10 @@ import {
   XCircle,
   Search,
   Loader2,
+  CalendarPlus,
+  Download,
 } from 'lucide-react';
+import { downloadICS, getGoogleCalendarUrl, parseTurkishDate } from '@/lib/ics';
 
 export function SupportsPage() {
   const [supports, setSupports] = useState<AgriSupport[]>([]);
@@ -36,14 +39,25 @@ export function SupportsPage() {
     fetchData();
   }, []);
 
-  const filtered = supports.filter((s) => {
-    const matchesSearch =
-      s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.agency.toLowerCase().includes(search.toLowerCase()) ||
-      s.summary.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = activeFilter === 'all' || s.status === activeFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filtered = supports
+    .filter((s) => {
+      const matchesSearch =
+        s.title.toLowerCase().includes(search.toLowerCase()) ||
+        s.agency.toLowerCase().includes(search.toLowerCase()) ||
+        s.summary.toLowerCase().includes(search.toLowerCase());
+      const matchesFilter = activeFilter === 'all' || s.status === activeFilter;
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      const statusOrder: Record<string, number> = { active: 0, upcoming: 1, closed: 2 };
+      const sa = statusOrder[a.status] ?? 3;
+      const sb = statusOrder[b.status] ?? 3;
+      if (activeFilter === 'all') {
+        if (sa !== sb) return sa - sb;
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      }
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    });
 
   const counts = {
     all: supports.length,
@@ -212,6 +226,36 @@ export function SupportsPage() {
                       </ul>
                     </div>
                   )}
+
+                  {(() => {
+                    const hasDates =
+                      parseTurkishDate(s.application_start || '') ||
+                      parseTurkishDate(s.application_end || '');
+                    const gcalUrl = getGoogleCalendarUrl(s);
+                    if (!hasDates) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => downloadICS(s)}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800 px-2.5 py-1.5 rounded-lg border border-green-200 bg-green-50 hover:bg-green-100 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          .ics indir
+                        </button>
+                        {gcalUrl && (
+                          <a
+                            href={gcalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5" />
+                            Google Takvim
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {s.official_url && (
                     <a
