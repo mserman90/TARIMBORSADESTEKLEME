@@ -5,10 +5,9 @@ import { AppLayout } from '@/components/AppLayout';
 import { LandingPage } from '@/pages/LandingPage';
 import { AuthPage } from '@/pages/AuthPage';
 import { DashboardPage } from '@/pages/DashboardPage';
-import { ProductsPage } from '@/pages/ProductsPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
 import { SettingsPage } from '@/pages/SettingsPage';
-import { SupportsPage } from '@/pages/SupportsPage';
+import { MarketPage } from '@/pages/MarketPage';
 import { NewsPage } from '@/pages/NewsPage';
 
 function App() {
@@ -27,10 +26,10 @@ function App() {
             }
           >
             <Route index element={<DashboardPage />} />
-            <Route path="products" element={<ProductsPage />} />
+            <Route path="products" element={<MarketPage />} />
+            <Route path="supports" element={<MarketPage />} />
             <Route path="products/:slug" element={<ProductDetailPage />} />
             <Route path="settings" element={<SettingsPage />} />
-            <Route path="supports" element={<SupportsPage />} />
             <Route path="news" element={<NewsPage />} />
           </Route>
         </Routes>

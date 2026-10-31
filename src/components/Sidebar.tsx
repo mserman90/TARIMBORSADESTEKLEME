@@ -7,15 +7,12 @@ import {
   LogOut,
   Sprout,
   Mail,
-  Bell,
-  Landmark,
   Newspaper,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/app', label: 'Panel', icon: LayoutDashboard, end: true },
-  { to: '/app/products', label: 'Ürünler', icon: Package, end: false },
-  { to: '/app/supports', label: 'Destekler', icon: Landmark, end: false },
+  { to: '/app/products', label: 'Pazar', icon: Package, end: false },
   { to: '/app/news', label: 'Haberler', icon: Newspaper, end: false },
   { to: '/app/settings', label: 'Abonelikler', icon: Settings, end: false },
 ];
